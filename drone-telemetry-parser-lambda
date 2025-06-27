@@ -1,0 +1,93 @@
+import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+
+const s3 = new S3Client({});
+const ddb = new DynamoDBClient({});
+const cleanDataBucket = "dronetelemetrycleandata27-6-25";
+
+function streamToString(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", chunk => chunks.push(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+  });
+}
+
+// ✅ FIXED: Support for concatenated JSON objects (no line breaks)
+function parseConcatenatedJson(data) {
+  const results = [];
+  const regex = /{[^}]*}(?={|$)/g;
+  let match;
+
+  while ((match = regex.exec(data)) !== null) {
+    try {
+      results.push(JSON.parse(match[0]));
+    } catch (err) {
+      console.error("❌ Could not parse JSON chunk:", match[0]);
+    }
+  }
+
+  return results;
+}
+
+export const handler = async (event) => {
+  try {
+    // Unwrap SNS → S3
+    const msg = event.Records?.[0]?.Sns?.Message;
+    if (!msg) throw new Error("Invalid SNS event");
+    const s3evt = JSON.parse(msg).Records?.[0]?.s3;
+    if (!s3evt) throw new Error("Invalid S3 record in SNS msg");
+
+    const bucket = s3evt.bucket.name;
+    const key = decodeURIComponent(s3evt.object.key.replace(/\+/g, " "));
+    console.log(`📥 Fetching s3://${bucket}/${key}`);
+
+    const s3Res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = await streamToString(s3Res.Body);
+    console.log("🪵 Raw S3 first 500 chars:\n", body.slice(0, 500));
+
+    const drones = parseConcatenatedJson(body);
+
+    for (const d of drones) {
+      if (d.errorCodes?.length) {
+        console.log(`⚠️ Skipping ${d.droneId} w/ errors`, d.errorCodes);
+        continue;
+      }
+
+      await ddb.send(new PutItemCommand({
+        TableName: "DroneTelemetryCleaned",
+        Item: {
+          droneId:     { S: d.droneId },
+          timestamp:   { S: d.timestamp },
+          speed:       { N: d.speed.toString() },
+          chargeLevel: { N: d.chargeLevel.toString() },
+          latitude:    { N: d.latitude.toString() },
+          longitude:   { N: d.longitude.toString() },
+          altitude:    { N: d.altitude.toString() },
+          landed:      { BOOL: d.landed }
+        }
+      }));
+      console.log(`✅ Wrote to DDB: ${d.droneId}@${d.timestamp}`);
+
+      const ts = new Date(d.timestamp);
+      const year = ts.getUTCFullYear();
+      const mon = String(ts.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(ts.getUTCDate()).padStart(2, "0");
+      const hr = String(ts.getUTCHours()).padStart(2, "0");
+      const s3Key = `cleaned/${year}/${mon}/${day}/${hr}/${d.droneId}-${ts.getTime()}.json`;
+
+      await s3.send(new PutObjectCommand({
+        Bucket: cleanDataBucket,
+        Key: s3Key,
+        Body: JSON.stringify(d),
+        ContentType: "application/json"
+      }));
+      console.log(`📤 Uploaded to s3://${cleanDataBucket}/${s3Key}`);
+    }
+
+  } catch (err) {
+    console.error("❌ Error processing telemetry:", err);
+    throw err;
+  }
+};
