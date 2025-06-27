@@ -1,0 +1,39 @@
+import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
+
+const ddb = new DynamoDBClient({});
+
+export const handler = async () => {
+  const command = new ScanCommand({
+    TableName: "DroneTelemetryCleaned",
+  });
+
+  try {
+    const result = await ddb.send(command);
+
+    // Sort records by timestamp DESC
+    const sorted = result.Items
+      .map(item => ({
+        droneId:     item.droneId.S,
+        timestamp:   item.timestamp.S,
+        speed:       parseFloat(item.speed.N),
+        chargeLevel: parseFloat(item.chargeLevel.N),
+        latitude:    parseFloat(item.latitude.N),
+        longitude:   parseFloat(item.longitude.N),
+        altitude:    parseFloat(item.altitude.N),
+        landed:      item.landed.BOOL
+      }))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(sorted[0]), // return latest record
+    };
+
+  } catch (err) {
+    console.error("❌ Error scanning DroneTelemetryCleaned:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Internal server error" }),
+    };
+  }
+};
