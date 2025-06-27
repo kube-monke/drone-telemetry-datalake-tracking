@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Drone Telemetry Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0; padding: 0;
+      background: #1e1e1e; color: #ddd;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    header {
+      background-color: #111; color: #4da3ff;
+      padding: 0.4rem; width: 100%; text-align: center;
+      font-size: 1.1rem;
+    }
+    .card {
+      background: #2a2a2a; border-radius: 12px;
+      padding: 1.2rem; margin: 1.5rem auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+      width: 100%; max-width: 720px;
+    }
+    h2 { color: #4da3ff; margin-bottom: 0.5rem; font-size: 1.2rem; }
+    select {
+      padding: 0.4rem; font-size: 0.9rem; margin-bottom: 1rem;
+      width: 100%; background: #333; color: #fff; border: 1px solid #555;
+    }
+    p { margin: 4px 0; font-size: 0.85rem; }
+    .status-badge {
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      font-weight: bold; font-size: 0.8rem; margin-left: 10px;
+    }
+    .flying { background-color: #27ae60; color: white; }
+    .landed { background-color: #e74c3c; color: white; }
+    .timestamp {
+      font-size: 0.8rem; color: #aaa; margin-top: 1rem;
+    }
+    canvas {
+      margin-top: 1rem; width: 100% !important;
+      height: 240px !important;
+    }
+    #map {
+      height: 500px;
+      width: 100%;
+      border-radius: 8px;
+      margin-top: 1.5rem;
+    }
+    .legend {
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+    .legend span {
+      margin-right: 15px;
+      display: inline-block;
+    }
+    .legend-box {
+      width: 12px; height: 12px; display: inline-block;
+      margin-right: 5px; vertical-align: middle;
+    }
+    button {
+      background: #444; color: #eee; border: none;
+      padding: 6px 10px; border-radius: 6px;
+      margin-top: 1rem; cursor: pointer;
+    }
+    button:hover {
+      background: #666;
+    }
+  </style>
+</head>
+<body>
+  <header>Drone Telemetry Dashboard</header>
+  <div class="card">
+    <h2>Live Data</h2>
+    <label for="droneSelector"><strong>Select Drone:</strong></label>
+    <select id="droneSelector" onchange="changeDrone(this.value)"></select>
+    <p><strong>Drone ID:</strong> <span id="droneId">--</span></p>
+    <p><strong>Status:</strong> <span id="landedStatus" class="status-badge">--</span></p>
+    <p><strong>Timestamp:</strong> <span id="timestamp">--</span></p>
+    <p><strong>Speed:</strong> <span id="speed">--</span> km/h</p>
+    <p><strong>Charge Level:</strong> <span id="charge">--</span>%</p>
+    <p><strong>Latitude:</strong> <span id="lat">--</span></p>
+    <p><strong>Longitude:</strong> <span id="lon">--</span></p>
+    <p><strong>Altitude:</strong> <span id="alt">--</span> m</p>
+    <div class="timestamp">Last updated: <span id="lastUpdated">--</span></div>
+    <canvas id="speedChart"></canvas>
+    <canvas id="altitudeChart"></canvas>
+    <canvas id="batteryChart"></canvas>
+    <h2>Live Location</h2>
+    <div id="map"></div>
+    <div class="legend" id="droneLegend"></div>
+    <button onclick="clearFlightPaths()">Reset Flight Paths</button>
+  </div>
+
+  <script>
+    const apiUrl = "https://b7ns670ke5.execute-api.us-east-1.amazonaws.com/getTelemetryData";
+    const knownDrones = new Set();
+    const droneColors = {};
+    const colorPalette = ["#9b3dff", "#006400", "#00008b"];
+    const flightPaths = {};
+    let dronePathLayers = {};
+    let selectedDroneId = null;
+
+    const speedData = [], altData = [], batteryData = [], timeLabels = [];
+
+    const map = L.map('map').setView([12.935, 77.614], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const liveMarker = L.marker([12.935, 77.614]).addTo(map);
+
+    const ctx1 = document.getElementById("speedChart").getContext("2d");
+    const ctx2 = document.getElementById("altitudeChart").getContext("2d");
+    const ctx3 = document.getElementById("batteryChart").getContext("2d");
+
+    const speedChart = new Chart(ctx1, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label: 'Speed (km/h)', data: speedData, borderColor: '#4da3ff', borderWidth: 2 }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    const altChart = new Chart(ctx2, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label: 'Altitude (m)', data: altData, borderColor: '#00d2ff', borderWidth: 2 }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    const batteryChart = new Chart(ctx3, {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label: 'Charge (%)', data: batteryData, borderColor: '#00ff90', borderWidth: 2 }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    function changeDrone(id) {
+      selectedDroneId = id;
+      speedData.length = altData.length = batteryData.length = timeLabels.length = 0;
+      speedChart.update(); altChart.update(); batteryChart.update();
+    }
+
+    function updateDropdown(droneId) {
+      if (!knownDrones.has(droneId)) {
+        knownDrones.add(droneId);
+        const color = colorPalette[(knownDrones.size - 1) % colorPalette.length];
+        droneColors[droneId] = color;
+        const opt = document.createElement('option');
+        opt.value = droneId; opt.textContent = droneId;
+        document.getElementById('droneSelector').appendChild(opt);
+        const legend = document.getElementById('droneLegend');
+        const span = document.createElement('span');
+        span.innerHTML = `<span class="legend-box" style="background:${color}"></span>${droneId}`;
+        legend.appendChild(span);
+        if (!selectedDroneId) {
+          selectedDroneId = droneId;
+          document.getElementById('droneSelector').value = droneId;
+        }
+      }
+    }
+
+    function clearFlightPaths() {
+      for (let drone in dronePathLayers) {
+        dronePathLayers[drone].remove();
+      }
+      dronePathLayers = {};
+      for (let drone in flightPaths) {
+        flightPaths[drone] = [];
+      }
+    }
+
+    async function fetchTelemetry() {
+      try {
+        const res = await fetch(apiUrl + "?t=" + Date.now());
+        const data = await res.json();
+        const records = Array.isArray(data) ? data : [data];
+
+        records.forEach(d => {
+          const id = d.droneId.toUpperCase();
+          updateDropdown(id);
+          if (!flightPaths[id]) flightPaths[id] = [];
+
+          if (id !== selectedDroneId) return;
+
+          document.getElementById("droneId").textContent = id;
+          document.getElementById("timestamp").textContent = d.timestamp;
+          document.getElementById("speed").textContent = d.speed;
+          document.getElementById("charge").textContent = d.chargeLevel;
+          document.getElementById("lat").textContent = d.latitude;
+          document.getElementById("lon").textContent = d.longitude;
+          document.getElementById("alt").textContent = d.altitude;
+          document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
+
+          const badge = document.getElementById("landedStatus");
+          badge.textContent = d.landed ? 'Landed' : 'Flying';
+          badge.className = 'status-badge ' + (d.landed ? 'landed' : 'flying');
+
+          const t = new Date(d.timestamp).toLocaleTimeString();
+          if (speedData.length >= 10) {
+            speedData.shift(); altData.shift(); batteryData.shift(); timeLabels.shift();
+          }
+          speedData.push(d.speed); altData.push(d.altitude); batteryData.push(d.chargeLevel); timeLabels.push(t);
+          speedChart.update(); altChart.update(); batteryChart.update();
+
+          liveMarker.setLatLng([d.latitude, d.longitude]);
+          map.setView([d.latitude, d.longitude]);
+
+          flightPaths[id].push([d.latitude, d.longitude]);
+          if (dronePathLayers[id]) dronePathLayers[id].remove();
+          dronePathLayers[id] = L.polyline(flightPaths[id], {
+            color: droneColors[id], weight: 3, opacity: 0.7
+          }).addTo(map);
+        });
+
+      } catch (e) {
+        console.error("Fetch error:", e);
+        document.getElementById("lastUpdated").textContent = "Error";
+      }
+    }
+
+    fetchTelemetry();
+    setInterval(fetchTelemetry, 4000);
+  </script>
+</body>
+</html>
