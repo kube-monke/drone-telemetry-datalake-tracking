@@ -1,0 +1,23 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:us-east-1:274980246559:telemetry-topic:example-sub",
+      "Sns": {
+        "Type": "Notification",
+        "MessageId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "TopicArn": "arn:aws:sns:us-east-1:274980246559:telemetry-topic",
+        "Subject": null,
+        "Message": "{\"Records\":[{\"s3\":{\"bucket\":{\"name\":\"dronetelemetryrawdata27-6-25\"},\"object\":{\"key\":\"2025/06/27/18/KDS-S3-qCBWU-1-2025-06-27-18-03-08-43fab034-3823-48d1-afc5-f55e704218e4\"}}}]}",
+        "Timestamp": "2025-06-27T12:00:01.000Z",
+        "SignatureVersion": "1",
+        "Signature": "EXAMPLE_SIGNATURE",
+        "SigningCertUrl": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService.pem",
+        "UnsubscribeUrl": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:274980246559:telemetry-topic:example-sub",
+        "MessageAttributes": {}
+      }
+    }
+  ]
+}
+
