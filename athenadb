@@ -1,0 +1,60 @@
+CREATE DATABASE IF NOT EXISTS drone_telemetry_db;
+
+
+
+CREATE EXTERNAL TABLE drone_telemetry_db.cleaned_telemetry (
+  droneId         STRING,
+  timestamp       STRING,
+  speed           INT,
+  chargeLevel     DOUBLE,
+  batteryWarning  BOOLEAN,
+  latitude        DOUBLE,
+  longitude       DOUBLE,
+  altitude        DOUBLE,
+  landed          BOOLEAN,
+  errorCodes      ARRAY<STRING>
+)
+ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+WITH SERDEPROPERTIES (
+  'ignore.malformed.json' = 'true'
+)
+LOCATION 's3://dronetelemetrycleandata27-6-25/cleaned/'
+TBLPROPERTIES ('has_encrypted_data'='false');
+
+
+
+
+
+SELECT * FROM drone_telemetry_db.cleaned_telemetry
+ORDER BY timestamp DESC
+LIMIT 10;
+
+
+SELECT droneId, AVG(speed) as avg_speed
+FROM drone_telemetry_db.cleaned_telemetry
+GROUP BY droneId;
+
+SELECT droneId, AVG(altitude) as avg_altitude
+FROM drone_telemetry_db.cleaned_telemetry
+GROUP BY droneId;
+
+SELECT droneId, AVG(chargeLevel) as avg_charge
+FROM drone_telemetry_db.cleaned_telemetry
+GROUP BY droneId;
+
+
+SELECT droneId, chargeLevel, timestamp
+FROM drone_telemetry_db.cleaned_telemetry
+WHERE chargeLevel < 20
+ORDER BY chargeLevel ASC;
+
+
+SELECT *
+FROM drone_telemetry_db.cleaned_telemetry
+WHERE droneId = 'hunter'
+ORDER BY timestamp DESC
+
+SELECT *
+FROM drone_telemetry_db.cleaned_telemetry
+WHERE droneId = 'cobra'
+ORDER BY timestamp DESC
