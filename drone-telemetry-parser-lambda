@@ -14,7 +14,7 @@ function streamToString(stream) {
   });
 }
 
-// ✅ FIXED: Support for concatenated JSON objects (no line breaks)
+// FIXED: Support for concatenated JSON objects (no line breaks)
 function parseConcatenatedJson(data) {
   const results = [];
   const regex = /{[^}]*}(?={|$)/g;
@@ -24,7 +24,7 @@ function parseConcatenatedJson(data) {
     try {
       results.push(JSON.parse(match[0]));
     } catch (err) {
-      console.error("❌ Could not parse JSON chunk:", match[0]);
+      console.error(" Could not parse JSON chunk:", match[0]);
     }
   }
 
@@ -41,7 +41,7 @@ export const handler = async (event) => {
 
     const bucket = s3evt.bucket.name;
     const key = decodeURIComponent(s3evt.object.key.replace(/\+/g, " "));
-    console.log(`📥 Fetching s3://${bucket}/${key}`);
+    console.log(`Fetching s3://${bucket}/${key}`);
 
     const s3Res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const body = await streamToString(s3Res.Body);
@@ -51,7 +51,7 @@ export const handler = async (event) => {
 
     for (const d of drones) {
       if (d.errorCodes?.length) {
-        console.log(`⚠️ Skipping ${d.droneId} w/ errors`, d.errorCodes);
+        console.log(`Skipping ${d.droneId} w/ errors`, d.errorCodes);
         continue;
       }
 
@@ -68,7 +68,7 @@ export const handler = async (event) => {
           landed:      { BOOL: d.landed }
         }
       }));
-      console.log(`✅ Wrote to DDB: ${d.droneId}@${d.timestamp}`);
+      console.log(`Wrote to DDB: ${d.droneId}@${d.timestamp}`);
 
       const ts = new Date(d.timestamp);
       const year = ts.getUTCFullYear();
@@ -83,11 +83,11 @@ export const handler = async (event) => {
         Body: JSON.stringify(d),
         ContentType: "application/json"
       }));
-      console.log(`📤 Uploaded to s3://${cleanDataBucket}/${s3Key}`);
+      console.log(`Uploaded to s3://${cleanDataBucket}/${s3Key}`);
     }
 
   } catch (err) {
-    console.error("❌ Error processing telemetry:", err);
+    console.error("Error processing telemetry:", err);
     throw err;
   }
 };
