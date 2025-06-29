@@ -3,7 +3,7 @@ import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
 const s3 = new S3Client({});
 const ddb = new DynamoDBClient({});
-const cleanDataBucket = "dronetelemetrycleandata27-6-25";
+const cleanDataBucket = "<S3 CLEAN DATA>";      // enter s3 clean data bucket name
 
 function streamToString(stream) {
   return new Promise((resolve, reject) => {
@@ -56,7 +56,7 @@ export const handler = async (event) => {
       }
 
       await ddb.send(new PutItemCommand({
-        TableName: "DroneTelemetryCleaned",
+        TableName: "<DB table>",   // enter DB table name
         Item: {
           droneId:     { S: d.droneId },
           timestamp:   { S: d.timestamp },
