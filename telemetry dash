@@ -97,7 +97,7 @@
   </div>
 
   <script>
-    const apiUrl = "https://b7ns670ke5.execute-api.us-east-1.amazonaws.com/getTelemetryData";
+    const apiUrl = "<API URL>";
     const knownDrones = new Set();
     const droneColors = {};
     const colorPalette = ["#9b3dff", "#006400", "#00008b"];
