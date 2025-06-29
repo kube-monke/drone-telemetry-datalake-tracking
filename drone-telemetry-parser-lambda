@@ -80,7 +80,7 @@ export const handler = async (event) => {
       await s3.send(new PutObjectCommand({
         Bucket: cleanDataBucket,
         Key: s3Key,
-        Body: JSON.stringify(d),
+        Body: JSON.stringify(d, null, 2), // ✅ Pretty-print JSON
         ContentType: "application/json"
       }));
       console.log(`Uploaded to s3://${cleanDataBucket}/${s3Key}`);
