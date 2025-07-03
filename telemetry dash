@@ -97,7 +97,7 @@
   </div>
 
   <script>
-    const apiUrl = "<API URL>";
+    const apiUrl = "<API URL>";   //enter API URL
     const knownDrones = new Set();
     const droneColors = {};
     const colorPalette = ["#9b3dff", "#006400", "#00008b"];
