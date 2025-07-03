@@ -1,7 +1,7 @@
 const AWS = require('aws-sdk');
 
-const STREAM_NAME = "drone-telemetry-stream";
-const REGION = "us-east-1";
+const STREAM_NAME = <"STREAM-NAME">;   // enter kinesis stream name
+const REGION = "us-east-1";  //change region if necessary
 
 AWS.config.update({ region: REGION });
 const kinesis = new AWS.Kinesis();
